@@ -15,6 +15,6 @@ defmodule Plug.Adapters.Wait1 do
 
   defp dispatch_for(plug, opts) do
     opts = plug.init(opts)
-    [{:_, [ {:_, Plug.Adapters.Hyper.Handler, {plug, opts}} ]}]
+    [{:_, [ {:_, Plug.Adapters.Wait1.Handler, {plug, opts}} ]}]
   end
 end
