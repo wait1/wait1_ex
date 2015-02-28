@@ -28,8 +28,8 @@ defmodule Plug.Adapters.Wait1.Conn do
     }
   end
 
-  defp scheme(:tcp), do: :http
-  defp scheme(:ssl), do: :https
+  defp scheme(:tcp), do: :ws
+  defp scheme(:ssl), do: :wss
 
   def send_resp(req, status, headers, body) do
     req = Map.merge(req, %{

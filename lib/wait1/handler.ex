@@ -33,6 +33,12 @@ defmodule Plug.Adapters.Wait1.Handler do
   def websocket_info({:hyper_resp, _, res}, req, state) do
     {:reply, {:text, res}, req, state}
   end
+  def websocket_info({:plug_conn, :sent}, req, state) do
+    {:ok, req, state}
+  end
+  def websocket_info({:DOWN, _ref, :process, _pid, :normal}, req, state) do
+    {:ok, req, state}
+  end
   def websocket_info(_info, req, state) do
     IO.inspect _info
     {:ok, req, state}
@@ -58,6 +64,10 @@ defmodule Plug.Adapters.Wait1.Handler do
     ref = spawn_monitor(__MODULE__, :handler, [id, method, path, headers, nil, state])
     handle(reqs, state, [ref | acc])
   end
+  defp handle([[id, method, path, headers, body] | reqs], state, acc) do
+    ref = spawn_monitor(__MODULE__, :handler, [id, method, path, headers, body, state])
+    handle(reqs, state, [ref | acc])
+  end
   defp handle([req | reqs], state, acc) do
     IO.inspect {:invalid, req}
     handle(reqs, state, acc)
@@ -67,12 +77,25 @@ defmodule Plug.Adapters.Wait1.Handler do
     defstruct body: nil
   end
 
-  def handler(id, method, path, headers, body, {plug, opts, init}) do
+  def handler(id, method, [""], headers, body, state) do
+    handler(id, method, [], headers, body, state)
+  end
+  def handler(id, method, path, headers, body, {plug, opts, init} = state) do
     conn = @connection.conn(init, method, path, "", headers, body)
     %{adapter: {@connection, res}} = conn |> plug.call(opts)
     headers = :maps.from_list(res.headers)
-    res_body = %Plug.Adapters.Wait1.Handler.Body{body: res.body}
-    out = Poison.encode!([[id, res.status, headers, res_body]])
+    response(id, res.status, headers, res.body, state, headers)
+  end
+
+  def response(id, 303, %{"location" => location}, _, state, headers) do
+    parts = URI.parse(location)
+    # TODO handle query string
+    [_ | path] = String.split(parts.path, "/")
+    handler(id, "GET", path, headers, nil, state)
+  end
+  def response(id, status, headers, body, {_, _, init}, _) do
+    res_body = %Plug.Adapters.Wait1.Handler.Body{body: body}
+    out = Poison.encode!([[id, status, headers, res_body]])
     send init.owner, {:hyper_resp, id, out}
   end
 end
