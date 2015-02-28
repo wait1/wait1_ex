@@ -20,7 +20,7 @@ defmodule Plug.Adapters.Wait1.Conn do
 
   def conn(init, method, path, qs, hdrs, body) do
     %{ init |
-      adapter: {__MODULE__, %{body: body}},
+      adapter: {__MODULE__, %{req_body: body}},
       method: method,
       path_info: path,
       query_string: qs,
@@ -57,7 +57,7 @@ defmodule Plug.Adapters.Wait1.Conn do
   end
 
   def read_req_body(req, _opts \\ []) do
-    {:ok, req.body, req}
+    {:ok, req.req_body, req}
   end
 
   def parse_req_multipart(req, _opts, _callback) do

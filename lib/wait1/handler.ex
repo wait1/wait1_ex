@@ -80,23 +80,57 @@ defmodule Plug.Adapters.Wait1.Handler do
   def handler(id, method, [""], headers, body, state) do
     handler(id, method, [], headers, body, state)
   end
-  def handler(id, method, path, headers, body, {plug, opts, init} = state) do
-    conn = @connection.conn(init, method, path, "", headers, body)
+  def handler(id, method, path, req_headers, body, {plug, opts, init} = state) do
+    conn = @connection.conn(init, method, path, "", req_headers, body)
     %{adapter: {@connection, res}} = conn |> plug.call(opts)
-    headers = :maps.from_list(res.headers)
-    response(id, res.status, headers, res.body, state, headers)
+    res_headers = Enum.reduce(res.headers, %{}, &join_headers/2)
+    response(id, res.status, res_headers, res.body, state, req_headers)
   end
 
-  def response(id, 303, %{"location" => location}, _, state, headers) do
+  def join_headers({name, value}, acc) do
+    case Map.get(acc, name) do
+      nil ->
+        Map.put(acc, name, value)
+      values when is_list(values) ->
+        Map.put(acc, name, [value | values])
+      prev ->
+        Map.put(acc, name, [value, prev])
+    end
+  end
+
+  def response(id, status, res_headers = %{"location" => location}, _, state, req_headers) when status == 302 or status == 303 do
     parts = URI.parse(location)
     # TODO handle query string
     [_ | path] = String.split(parts.path, "/")
-    handler(id, "GET", path, headers, nil, state)
+    handler(id, "GET", path, req_headers, nil, state)
+    invalidates(res_headers, state, req_headers)
   end
-  def response(id, status, headers, body, {_, _, init}, _) do
+  def response(id, status, headers, body, {_, _, init} = state, req_headers) do
     res_body = %Plug.Adapters.Wait1.Handler.Body{body: body}
     out = Poison.encode!([[id, status, headers, res_body]])
     send init.owner, {:hyper_resp, id, out}
+    invalidates(headers, state, req_headers)
+  end
+
+  def invalidates(%{"x-invalidates" => link}, state, req_headers) do
+    link = if is_list(link), do: link, else: [link]
+    Enum.each(link, &(invalidate(&1, state, req_headers)))
+  end
+  def invalidates(_, _, _) do
+    :ok
+  end
+
+  def invalidate(path, state, req_headers) do
+    handler(-1, "GET", string_to_path(path), req_headers, nil, state)
+  end
+
+  def string_to_path(path) when is_list(path) do
+    path
+  end
+  def string_to_path(str) do
+    parts = URI.parse(str)
+    [_ | path] = String.split(parts.path, "/")
+    path
   end
 end
 
