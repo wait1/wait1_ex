@@ -1,2 +1,3 @@
-# hyper-plug
-Plug interface for the hyper protocol
+# plug_wait1
+
+Plug interface for the wait1 protocol
