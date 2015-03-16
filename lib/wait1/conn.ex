@@ -5,27 +5,40 @@ defmodule Plug.Adapters.Wait1.Conn do
   def init(req, transport) do
     {host, req} = Request.host req
     {port, req} = Request.port req
-    {peer, _req} = Request.peer req
+    {peer, req} = Request.peer req
     {remote_ip, _} = peer
 
-    %Plug.Conn{
+    conn = %Plug.Conn{
       host: host,
       owner: self(),
       peer: peer,
       port: port,
       remote_ip: remote_ip,
       scheme: scheme(transport)
-   }
+    }
+
+    {headers, req} = Request.headers req
+    cookies = for {"cookie", _} = h <- headers, do: h
+    conn = Plug.Conn.put_private(conn, :wait1_cookies, cookies)
+    {:ok, conn, req}
   end
 
   def conn(init, method, path, qs, hdrs, body) do
+    cookies = Map.get(init.private, :wait1_cookies)
     %{ init |
       adapter: {__MODULE__, %{req_body: body}},
       method: method,
       path_info: path,
       query_string: qs,
-      req_headers: Map.to_list(hdrs)
+      req_headers: Map.to_list(hdrs) ++ cookies
     }
+  end
+
+  def update_cookies(init, cookies) do
+    headers = Enum.map(cookies, fn({key, value}) ->
+      {"cookie", key <> "=" <> value}
+    end)
+    {:ok, Plug.Conn.put_private(init, :wait1_cookies, headers)}
   end
 
   defp scheme(:tcp), do: :ws

@@ -18,7 +18,8 @@ defmodule Plug.Adapters.Wait1.Handler do
   end
 
   def websocket_init(transport, req, {plug, opts}) do
-    {:ok, req, {plug, opts, @connection.init(req, transport)}}
+    {:ok, conn, req} = @connection.init(req, transport)
+    {:ok, req, {plug, opts, conn}}
   end
 
   def websocket_handle({:text, content}, req, state) do
@@ -30,8 +31,16 @@ defmodule Plug.Adapters.Wait1.Handler do
     end
   end
 
-  def websocket_info({:hyper_resp, _, res}, req, state) do
+  def websocket_info({:wait1_resp, _, res}, req, state) do
     {:reply, {:text, res}, req, state}
+  end
+  def websocket_info({:wait1_reqs, _, hreqs}, req, state) do
+    {:ok, _reqs, state} = handle(hreqs, state, [])
+    {:ok, req, state}
+  end
+  def websocket_info({:wait1_cookies, cookies}, req, {plug, opts, init}) do
+    {:ok, init} = @connection.update_cookies(init, cookies)
+    {:ok, req, {plug, opts, init}}
   end
   def websocket_info({:plug_conn, :sent}, req, state) do
     {:ok, req, state}
@@ -82,7 +91,13 @@ defmodule Plug.Adapters.Wait1.Handler do
   end
   def handler(id, method, path, req_headers, body, {plug, opts, init} = state) do
     conn = @connection.conn(init, method, path, "", req_headers, body)
-    %{adapter: {@connection, res}} = conn |> plug.call(opts)
+    %{adapter: {@connection, res}, cookies: res_cookies} = conn |> plug.call(opts)
+    case res_cookies do
+      %Plug.Conn.Unfetched{} ->
+        :ok
+      _ ->
+        send init.owner, {:wait1_cookies, res_cookies}
+    end
     res_headers = Enum.reduce(res.headers, %{}, &join_headers/2)
     response(id, res.status, res_headers, res.body, state, req_headers)
   end
@@ -108,13 +123,13 @@ defmodule Plug.Adapters.Wait1.Handler do
   def response(id, status, headers, body, {_, _, init} = state, req_headers) do
     res_body = %Plug.Adapters.Wait1.Handler.Body{body: body}
     out = Poison.encode!([[id, status, headers, res_body]])
-    send init.owner, {:hyper_resp, id, out}
+    send init.owner, {:wait1_resp, id, out}
     invalidates(headers, state, req_headers)
   end
 
   def invalidates(%{"x-invalidates" => link}, state, req_headers) do
     link = if is_list(link), do: link, else: [link]
-    Enum.each(link, &(invalidate(&1, state, req_headers)))
+    Enum.map(link, &(invalidate(&1, state, req_headers)))
   end
   def invalidates(_, _, _) do
     :ok
