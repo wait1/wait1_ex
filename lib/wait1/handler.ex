@@ -19,8 +19,8 @@ defmodule Plug.Adapters.Wait1.Handler do
     end
   end
 
-  def upgrade(req, env, _, {plug, opts, _}) do
-    @fallback.upgrade(req, env, @fallback, {plug, opts})
+  def upgrade(req, env, _, transport) do
+    @fallback.upgrade(req, env, @fallback, transport)
   end
 
   def websocket_init(transport, req, {plug, opts, _}) do
