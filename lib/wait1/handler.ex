@@ -10,7 +10,7 @@ defmodule Plug.Adapters.Wait1.Handler do
         ## TODO set the Sec-WebSocket-Protocol header
         case onconnection.(req) do
           {:ok, req} ->
-            {:upgrade, :protocol, :cowboy_websocket, req, []}
+            {:upgrade, :protocol, :cowboy_websocket, req, {plug, opts}}
           {:halt, req} ->
             {:shutdown, req, {plug, opts, onconnection}}
         end
@@ -23,7 +23,7 @@ defmodule Plug.Adapters.Wait1.Handler do
     @fallback.upgrade(req, env, @fallback, transport)
   end
 
-  def websocket_init(transport, req, {plug, opts, _}) do
+  def websocket_init(transport, req, {plug, opts}) do
     {:ok, conn, req} = @connection.init(req, transport)
     {:ok, req, {plug, opts, conn}}
   end
