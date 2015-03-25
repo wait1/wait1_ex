@@ -4,20 +4,26 @@ defmodule Plug.Adapters.Wait1.Handler do
   @fallback Plug.Adapters.Cowboy.Handler
   @already_sent {:plug_conn, :sent}
 
-  def init({transport, :http}, req, {plug, opts}) when transport in [:tcp, :ssl] do
+  def init({transport, :http}, req, {plug, opts, onconnection}) when transport in [:tcp, :ssl] do
     case :cowboy_req.header("upgrade", req) do
       {"websocket", _} ->
-        {:upgrade, :protocol, :cowboy_websocket}
+        ## TODO set the Sec-WebSocket-Protocol header
+        case onconnection.(req) do
+          {:ok, req} ->
+            {:upgrade, :protocol, :cowboy_websocket, req, []}
+          {:halt, req} ->
+            {:shutdown, req, {plug, opts, onconnection}}
+        end
       _ ->
         {:upgrade, :protocol, __MODULE__, req, {transport, plug, opts}}
     end
   end
 
-  def upgrade(req, env, _, state) do
-    @fallback.upgrade(req, env, @fallback, state)
+  def upgrade(req, env, _, {plug, opts, _}) do
+    @fallback.upgrade(req, env, @fallback, {plug, opts})
   end
 
-  def websocket_init(transport, req, {plug, opts}) do
+  def websocket_init(transport, req, {plug, opts, _}) do
     {:ok, conn, req} = @connection.init(req, transport)
     {:ok, req, {plug, opts, conn}}
   end
@@ -37,10 +43,6 @@ defmodule Plug.Adapters.Wait1.Handler do
   def websocket_info({:wait1_reqs, _, hreqs}, req, state) do
     {:ok, _reqs, state} = handle(hreqs, state, [])
     {:ok, req, state}
-  end
-  def websocket_info({:wait1_cookies, cookies}, req, {plug, opts, init}) do
-    {:ok, init} = @connection.update_cookies(init, cookies)
-    {:ok, req, {plug, opts, init}}
   end
   def websocket_info({:plug_conn, :sent}, req, state) do
     {:ok, req, state}
@@ -91,13 +93,7 @@ defmodule Plug.Adapters.Wait1.Handler do
   end
   def handler(id, method, path, req_headers, body, {plug, opts, init} = state) do
     conn = @connection.conn(init, method, path, "", req_headers, body)
-    %{adapter: {@connection, res}, cookies: res_cookies} = conn |> plug.call(opts)
-    case res_cookies do
-      %Plug.Conn.Unfetched{} ->
-        :ok
-      _ ->
-        send init.owner, {:wait1_cookies, res_cookies}
-    end
+    %{adapter: {@connection, res}} = conn |> plug.call(opts)
     res_headers = Enum.reduce(res.headers, %{}, &join_headers/2)
     response(id, res.status, res_headers, res.body, state, req_headers)
   end

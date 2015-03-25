@@ -34,13 +34,6 @@ defmodule Plug.Adapters.Wait1.Conn do
     }
   end
 
-  def update_cookies(init, cookies) do
-    headers = Enum.map(cookies, fn({key, value}) ->
-      {"cookie", key <> "=" <> value}
-    end)
-    {:ok, Plug.Conn.put_private(init, :wait1_cookies, headers)}
-  end
-
   defp scheme(:tcp), do: :ws
   defp scheme(:ssl), do: :wss
 
