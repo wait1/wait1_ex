@@ -15,7 +15,7 @@ defmodule Plug.Adapters.Wait1 do
 
   defp dispatch_for(plug, opts, options) do
     opts = plug.init(opts)
-    [{:_, [ {:_, Plug.Adapters.Wait1.Handler, {plug, opts, Keyword.get(:onconnection, options, &onconnection/1)}} ]}]
+    [{:_, [ {:_, Plug.Adapters.Wait1.Handler, {plug, opts, Keyword.get(options, :onconnection, &onconnection/1)}} ]}]
   end
 
   defp onconnection(req) do
