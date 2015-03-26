@@ -18,19 +18,29 @@ defmodule Plug.Adapters.Wait1.Conn do
     }
 
     {headers, req} = Request.headers req
-    cookies = for {"cookie", _} = h <- headers, do: h
-    conn = Plug.Conn.put_private(conn, :wait1_cookies, cookies)
+    wait1_headers = Enum.filter(headers, fn({name, _}) ->
+      case name do
+        "cookie" -> true
+        <<"x-forwarded-", _ :: binary>> -> true
+        <<"x-orig-", _ :: binary>> -> true
+        "user-agent" -> true
+        "accept-language" -> true
+        "origin" -> true
+        _ -> false
+      end
+    end)
+    conn = Plug.Conn.put_private(conn, :wait1_headers, wait1_headers)
     {:ok, conn, req}
   end
 
   def conn(init, method, path, qs, hdrs, body) do
-    cookies = Map.get(init.private, :wait1_cookies)
+    headers = Map.get(init.private, :wait1_headers)
     %{ init |
       adapter: {__MODULE__, %{req_body: body}},
       method: method,
       path_info: path,
       query_string: qs,
-      req_headers: Map.to_list(hdrs) ++ cookies
+      req_headers: Map.to_list(hdrs) ++ headers
     }
   end
 
