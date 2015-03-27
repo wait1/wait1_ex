@@ -92,7 +92,7 @@ defmodule Plug.Adapters.Wait1.Handler do
     handler(id, method, [], headers, body, state)
   end
   def handler(id, method, path, req_headers, body, {plug, opts, init} = state) do
-    conn = @connection.conn(init, method, path, "", req_headers, body)
+    conn = @connection.conn(init, method, path, req_headers, body)
     %{adapter: {@connection, res}} = conn |> plug.call(opts)
     res_headers = Enum.reduce(res.headers, %{}, &join_headers/2)
     response(id, res.status, res_headers, res.body, state, req_headers)

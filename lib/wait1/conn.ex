@@ -33,13 +33,22 @@ defmodule Plug.Adapters.Wait1.Conn do
     {:ok, conn, req}
   end
 
-  def conn(init, method, path, qs, hdrs, body) do
+  def conn(init, method, path, hdrs, nil) do
+    headers = Map.get(init.private, :wait1_headers)
+    %{ init |
+      adapter: {__MODULE__, %{req_body: nil}},
+      method: method,
+      path_info: path,
+      req_headers: Map.to_list(hdrs) ++ headers
+    }
+  end
+  def conn(init, method, path, hdrs, body) do
     headers = Map.get(init.private, :wait1_headers)
     %{ init |
       adapter: {__MODULE__, %{req_body: body}},
+      params: body,
       method: method,
       path_info: path,
-      query_string: qs,
       req_headers: Map.to_list(hdrs) ++ headers
     }
   end
