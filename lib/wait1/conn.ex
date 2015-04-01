@@ -2,6 +2,16 @@ defmodule Plug.Adapters.Wait1.Conn do
   @behaviour Plug.Conn.Adapter
   alias :cowboy_req, as: Request
 
+  defmodule QS do
+    defstruct kvs: nil
+  end
+
+  defimpl String.Chars, for: QS do
+    def to_string(qs) do
+      Plug.Conn.Query.encode(qs.kvs)
+    end
+  end
+
   def init(req, transport) do
     {host, req} = Request.host req
     {port, req} = Request.port req
@@ -47,6 +57,7 @@ defmodule Plug.Adapters.Wait1.Conn do
     %{ init |
       adapter: {__MODULE__, %{req_body: body}},
       params: body,
+      query_string: %QS{kvs: body},
       method: method,
       path_info: path,
       req_headers: Map.to_list(hdrs) ++ headers
