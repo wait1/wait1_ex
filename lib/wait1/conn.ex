@@ -7,8 +7,14 @@ defmodule Plug.Adapters.Wait1.Conn do
   end
 
   defimpl String.Chars, for: QS do
-    def to_string(qs) do
-      Plug.Conn.Query.encode(qs.kvs)
+    def to_string(%{:kvs => kvs}) when is_map(kvs) do
+      Plug.Conn.Query.encode(kvs)
+    end
+    def to_string(%{:kvs => kvs}) when is_binary(kvs) do
+      kvs
+    end
+    def to_string(_) do
+      ""
     end
   end
 
@@ -43,25 +49,39 @@ defmodule Plug.Adapters.Wait1.Conn do
     {:ok, conn, req}
   end
 
-  def conn(init, method, path, hdrs, nil) do
+  def conn(init, method, path, hdrs, qs, body) when is_binary(path) do
+    case String.split("/", path) do
+      [""] ->
+        conn(init, method, [], hdrs, qs, body)
+      ["", ""] ->
+        conn(init, method, [], hdrs, qs, body)
+      [_ | rest] ->
+        conn(init, method, rest, hdrs, qs, body)
+    end
+  end
+  def conn(init, method, path, hdrs, qs, body) when is_binary(qs) do
+    conn(init, method, path, hdrs, Plug.Conn.Query.decode(qs), body)
+  end
+  def conn(init, method, path, hdrs, qs, body) do
     headers = Map.get(init.private, :wait1_headers)
     %{ init |
-      adapter: {__MODULE__, %{req_body: nil}},
+      adapter: {__MODULE__, %{}},
+      params: merge_params(qs, body),
+      query_string: %QS{kvs: qs},
       method: method,
       path_info: path,
       req_headers: Map.to_list(hdrs) ++ headers
     }
   end
-  def conn(init, method, path, hdrs, body) do
-    headers = Map.get(init.private, :wait1_headers)
-    %{ init |
-      adapter: {__MODULE__, %{req_body: body}},
-      params: body,
-      query_string: %QS{kvs: body},
-      method: method,
-      path_info: path,
-      req_headers: Map.to_list(hdrs) ++ headers
-    }
+
+  defp merge_params(other, param) when not is_map(other) do
+    merge_params(%{}, param)
+  end
+  defp merge_params(param, other) when not is_map(other) do
+    merge_params(param, %{})
+  end
+  defp merge_params(param1, param2) do
+    Map.merge(param1, param2)
   end
 
   defp scheme(:tcp), do: :ws
@@ -93,7 +113,7 @@ defmodule Plug.Adapters.Wait1.Conn do
   end
 
   def read_req_body(req, _opts \\ []) do
-    {:ok, req.req_body, req}
+    {:ok, "", req}
   end
 
   def parse_req_multipart(req, _opts, _callback) do

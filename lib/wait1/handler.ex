@@ -72,11 +72,15 @@ defmodule Plug.Adapters.Wait1.Handler do
     {:ok, acc}
   end
   defp handle([[id, method, path, headers] | reqs], state, acc) do
-    ref = spawn_monitor(__MODULE__, :handler, [id, method, path, headers, nil, state])
+    ref = spawn_monitor(__MODULE__, :handler, [id, method, path, headers, nil, nil, state])
     handle(reqs, state, [ref | acc])
   end
-  defp handle([[id, method, path, headers, body] | reqs], state, acc) do
-    ref = spawn_monitor(__MODULE__, :handler, [id, method, path, headers, body, state])
+  defp handle([[id, method, path, headers, qs] | reqs], state, acc) do
+    ref = spawn_monitor(__MODULE__, :handler, [id, method, path, headers, qs, nil, state])
+    handle(reqs, state, [ref | acc])
+  end
+  defp handle([[id, method, path, headers, qs, body] | reqs], state, acc) do
+    ref = spawn_monitor(__MODULE__, :handler, [id, method, path, headers, qs, body, state])
     handle(reqs, state, [ref | acc])
   end
   defp handle([req | reqs], state, acc) do
@@ -88,11 +92,11 @@ defmodule Plug.Adapters.Wait1.Handler do
     defstruct body: nil
   end
 
-  def handler(id, method, [""], headers, body, state) do
-    handler(id, method, [], headers, body, state)
+  def handler(id, method, [""], headers, qs, body, state) do
+    handler(id, method, [], headers, body, qs, state)
   end
-  def handler(id, method, path, req_headers, body, {plug, opts, init} = state) do
-    conn = @connection.conn(init, method, path, req_headers, body)
+  def handler(id, method, path, req_headers, qs, body, {plug, opts, init} = state) do
+    conn = @connection.conn(init, method, path, req_headers, qs, body)
     %{adapter: {@connection, res}} = conn |> plug.call(opts)
     res_headers = Enum.reduce(res.headers, %{}, &join_headers/2)
     response(id, res.status, res_headers, res.body, state, req_headers)
@@ -113,7 +117,7 @@ defmodule Plug.Adapters.Wait1.Handler do
     parts = URI.parse(location)
     # TODO handle query string
     [_ | path] = String.split(parts.path, "/")
-    handler(id, "GET", path, req_headers, nil, state)
+    handler(id, "GET", path, req_headers, parts.query, nil, state)
     invalidates(res_headers, state, req_headers)
   end
   def response(id, status, headers, body, {_, _, init} = state, req_headers) do
@@ -132,7 +136,8 @@ defmodule Plug.Adapters.Wait1.Handler do
   end
 
   def invalidate(path, state, req_headers) do
-    handler(-1, "GET", string_to_path(path), req_headers, nil, state)
+    [path, qs] = String.split(path, "?")
+    handler(-1, "GET", string_to_path(path), req_headers, qs, nil, state)
   end
 
   def string_to_path(path) when is_list(path) do
