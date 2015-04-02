@@ -136,8 +136,12 @@ defmodule Plug.Adapters.Wait1.Handler do
   end
 
   def invalidate(path, state, req_headers) do
-    [path, qs] = String.split(path, "?")
-    handler(-1, "GET", string_to_path(path), req_headers, qs, nil, state)
+    case String.split(path, "?") do
+      [path] ->
+        handler(-1, "GET", string_to_path(path), req_headers, %{}, nil, state)
+      [path, qs] ->
+        handler(-1, "GET", string_to_path(path), req_headers, qs, nil, state)
+    end
   end
 
   def string_to_path(path) when is_list(path) do
