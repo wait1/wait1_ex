@@ -42,6 +42,7 @@ defmodule Plug.Adapters.Wait1.Conn do
         "user-agent" -> true
         "accept-language" -> true
         "origin" -> true
+        "authorization" -> true
         _ -> false
       end
     end)
