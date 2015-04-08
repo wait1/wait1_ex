@@ -6,17 +6,36 @@ defmodule Plug.Adapters.Wait1.Handler do
 
   def init({transport, :http}, req, {plug, opts, onconnection}) when transport in [:tcp, :ssl] do
     case :cowboy_req.header("upgrade", req) do
-      {"websocket", _} ->
-        ## TODO set the Sec-WebSocket-Protocol header
+      {upgrade, _} when upgrade in ["Websocket", "websocket"] ->
         case onconnection.(req) do
           {:ok, req} ->
-            {:upgrade, :protocol, :cowboy_websocket, req, {plug, opts}}
+            case :cowboy_req.parse_header("sec-websocket-protocol", req) do
+              {:ok, protocols, req} when is_list(protocols) ->
+                req = select_protocol(protocols, req)
+                {:upgrade, :protocol, :cowboy_websocket, req, {plug, opts}}
+              {:ok, _, req} ->
+                {:upgrade, :protocol, :cowboy_websocket, req, {plug, opts}}
+            end
           {:halt, req} ->
             {:shutdown, req, {plug, opts, onconnection}}
         end
       _ ->
         {:upgrade, :protocol, __MODULE__, req, {transport, plug, opts}}
     end
+  end
+
+  defp select_protocol([], req) do
+    req
+  end
+  defp select_protocol(["wait1" | rest], req) do
+    select_protocol(rest, :cowboy_req.set_resp_header("sec-websocket-protocol", "wait1", req))
+  end
+  defp select_protocol([<<"wait1|", token :: binary>> | rest], req) do
+    headers = [{"authorization", "Bearer " <> token} | :cowboy_req.get(:headers, req)]
+    select_protocol(rest, :cowboy_req.set([headers: headers], req))
+  end
+  defp select_protocol([_ | rest], req) do
+    select_protocol(rest, req)
   end
 
   def upgrade(req, env, _, transport) do
