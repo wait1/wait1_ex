@@ -30,8 +30,12 @@ defmodule Plug.Adapters.Wait1.Handler do
   defp select_protocol(["wait1" | rest], req) do
     select_protocol(rest, :cowboy_req.set_resp_header("sec-websocket-protocol", "wait1", req))
   end
-  defp select_protocol([<<"wait1|", token :: binary>> | rest], req) do
+  defp select_protocol([<<"wait1|t", token :: binary>> | rest], req) do
     headers = [{"authorization", "Bearer " <> token} | :cowboy_req.get(:headers, req)]
+    select_protocol(rest, :cowboy_req.set([headers: headers], req))
+  end
+  defp select_protocol([<<"wait1|b", basic :: binary>> | rest], req) do
+    headers = [{"authorization", "Basic " <> basic} | :cowboy_req.get(:headers, req)]
     select_protocol(rest, :cowboy_req.set([headers: headers], req))
   end
   defp select_protocol([_ | rest], req) do
