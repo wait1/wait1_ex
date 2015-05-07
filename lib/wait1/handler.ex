@@ -62,6 +62,9 @@ defmodule Plug.Adapters.Wait1.Handler do
   def websocket_handle({:ping, _}, req, state) do
     {:ok, :pong, req, state}
   end
+  def websocket_handle({:pong, _}, req, state) do
+    {:ok, req, state}
+  end
   def websocket_handle(other, req, state) do
     IO.inspect other
     {:ok, req, state}
