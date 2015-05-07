@@ -77,6 +77,10 @@ defmodule Plug.Adapters.Wait1.Handler do
     {:ok, _reqs, state} = handle(hreqs, state, [])
     {:ok, req, state}
   end
+  def websocket_info({:wait1_cookie, resp_cookies}, req, {plug, opts, init}) do
+    {:ok, init} = @connection.update_cookies(init, resp_cookies)
+    {:ok, req, {plug, opts, init}}
+  end
   def websocket_info({:plug_conn, :sent}, req, state) do
     {:ok, req, state}
   end
@@ -130,7 +134,11 @@ defmodule Plug.Adapters.Wait1.Handler do
   end
   def handler(id, method, path, req_headers, qs, body, {plug, opts, init} = state) do
     conn = @connection.conn(init, method, path, req_headers, qs, body)
-    %{adapter: {@connection, res}} = conn |> plug.call(opts)
+    conn = %{adapter: {@connection, res}} = plug.call(conn, opts)
+    resp_cookies = conn.resp_cookies
+    if Map.size(resp_cookies) > 0 do
+      send init.owner, {:wait1_cookie, resp_cookies}
+    end
     res_headers = Enum.reduce(res.headers, %{}, &join_headers/2)
     response(id, res.status, res_headers, res.body, state, req_headers)
   end

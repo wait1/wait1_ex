@@ -75,6 +75,14 @@ defmodule Plug.Adapters.Wait1.Conn do
     }
   end
 
+  def update_cookies(init, resp_cookies) do
+    headers = Enum.map(resp_cookies, fn({key, %{value: value}}) ->
+      {"cookie", "#{key}=#{value}"}
+    end)
+    conn = Plug.Conn.put_private(init, :wait1_headers, headers ++ init.private.wait1_headers)
+    {:ok, conn}
+  end
+
   defp merge_params(other, param) when not is_map(other) do
     merge_params(%{}, param)
   end
