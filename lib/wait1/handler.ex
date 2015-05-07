@@ -60,7 +60,7 @@ defmodule Plug.Adapters.Wait1.Handler do
     end
   end
   def websocket_handle({:ping, _}, req, state) do
-    {:ok, :pong, req, state}
+    {:reply, :pong, req, state}
   end
   def websocket_handle({:pong, _}, req, state) do
     {:ok, req, state}
