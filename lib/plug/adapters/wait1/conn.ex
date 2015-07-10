@@ -1,23 +1,13 @@
 defmodule Plug.Adapters.Wait1.Conn do
   @behaviour Plug.Conn.Adapter
+  @moduledoc false
+
   alias :cowboy_req, as: Request
+  alias Plug.Adapters.Wait1.Conn.QS
 
-  defmodule QS do
-    defstruct kvs: nil
-  end
-
-  defimpl String.Chars, for: QS do
-    def to_string(%{:kvs => kvs}) when is_map(kvs) do
-      Plug.Conn.Query.encode(kvs)
-    end
-    def to_string(%{:kvs => kvs}) when is_binary(kvs) do
-      kvs
-    end
-    def to_string(_) do
-      ""
-    end
-  end
-
+  @doc """
+  Initialize the connection for future connections on this request.
+  """
   def init(req, transport) do
     {host, req} = Request.host req
     {port, req} = Request.port req
@@ -50,37 +40,63 @@ defmodule Plug.Adapters.Wait1.Conn do
     {:ok, conn, req}
   end
 
+  @doc """
+  Create a connection for the given request
+  """
+  def conn(init, method, [""], hdrs, qs, body) do
+    conn(init, method, [], hdrs, qs, body)
+  end
   def conn(init, method, path, hdrs, qs, body) when is_binary(path) do
-    case String.split("/", path) do
+    case String.split(path, "/") do
       [""] ->
         conn(init, method, [], hdrs, qs, body)
       ["", ""] ->
         conn(init, method, [], hdrs, qs, body)
-      [_ | rest] ->
+      ["" | rest] ->
+        rest = filter_slashes(rest, [])
+        conn(init, method, rest, hdrs, qs, body)
+      rest ->
+        rest = filter_slashes(rest, [])
         conn(init, method, rest, hdrs, qs, body)
     end
   end
   def conn(init, method, path, hdrs, qs, body) when is_binary(qs) do
     conn(init, method, path, hdrs, Plug.Conn.Query.decode(qs), body)
   end
-  def conn(init, method, path, hdrs, qs, body) do
-    headers = Map.get(init.private, :wait1_headers)
+  def conn(init, method, path, hdrs, qs, body) when is_map(hdrs) do
+    conn(init, method, path, :maps.to_list(hdrs), qs, body)
+  end
+  def conn(init = %{private: %{wait1_headers: headers}}, method, path, hdrs, qs, body) do
     %{ init |
       adapter: {__MODULE__, %{}},
       params: merge_params(qs, body),
+      query_params: qs || %{},
+      body_params: body || %{},
       query_string: %QS{kvs: qs},
       method: method,
       path_info: path,
-      req_headers: Map.to_list(hdrs) ++ headers
+      req_headers: hdrs ++ headers
     }
   end
 
+  @doc """
+  Update the initial connection's cookies
+  """
   def update_cookies(init, resp_cookies) do
     headers = Enum.map(resp_cookies, fn({key, %{value: value}}) ->
       {"cookie", "#{key}=#{value}"}
     end)
-    conn = Plug.Conn.put_private(init, :wait1_headers, headers ++ init.private.wait1_headers)
-    {:ok, conn}
+    Plug.Conn.put_private(init, :wait1_headers, headers ++ init.private.wait1_headers)
+  end
+
+  defp filter_slashes([], acc) do
+    :lists.reverse(acc)
+  end
+  defp filter_slashes(["" | rest], acc) do
+    filter_slashes(rest, acc)
+  end
+  defp filter_slashes([part | rest], acc) do
+    filter_slashes(rest, [part | acc])
   end
 
   defp merge_params(other, param) when not is_map(other) do
