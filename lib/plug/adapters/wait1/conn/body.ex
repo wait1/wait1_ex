@@ -9,10 +9,10 @@ defimpl Poison.Encoder, for: Plug.Adapters.Wait1.Conn.Body do
         "null"
       nil ->
         "null"
-      body when is_binary(body) ->
-        body
       body when is_map(body) ->
         Poison.Encoder.encode(body, options)
+      body ->
+        body
     end
   end
 end

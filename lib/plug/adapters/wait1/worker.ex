@@ -1,4 +1,6 @@
 defmodule Plug.Adapters.Wait1.Worker do
+  require Logger
+
   @moduledoc false
   alias Plug.Adapters.Wait1.Conn
 
@@ -31,17 +33,36 @@ defmodule Plug.Adapters.Wait1.Worker do
   end
 
   defp format_error(err, type, id) do
+    stacktrace = :erlang.get_stacktrace()
+    {message, method, path} = extract_connection_error(err)
+    exception = Exception.format(type, message, stacktrace)
+
+    Logger.error(fn ->
+      ["Internal Server Error ", method, " ", path, "\n", exception]
+    end)
+
     body = %{
       "error" => %{
         "message" => if Mix.env == :prod do
           "Internal server error"
         else
-          Exception.format(type, err, :erlang.get_stacktrace())
+          exception
         end
       }
     }
+
     msg = Poison.encode!([[id, 500, %{}, body]])
     {:wait1_resp, self(), id, msg, [], []}
+  end
+
+  defp extract_connection_error({message, %Plug.Conn{method: method} = conn}) when is_binary(message) do
+    {message, method, Plug.Conn.full_path(conn)}
+  end
+  defp extract_connection_error({message, %Plug.Conn{method: method} = conn}) do
+    {inspect(message), method, Plug.Conn.full_path(conn)}
+  end
+  defp extract_connection_error(message) do
+    {message, "", ""}
   end
 
   defp request(method, path, req_headers, qs, body, plug, opts, init, redirect) do
