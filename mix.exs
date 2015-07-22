@@ -3,7 +3,7 @@ defmodule PlugWait1.Mixfile do
 
   def project do
     [app: :plug_wait1,
-     version: "0.1.0",
+     version: "0.1.1",
      elixir: "~> 1.0",
      description: "Plug adapter for the wait1 protocol",
      package: package,
