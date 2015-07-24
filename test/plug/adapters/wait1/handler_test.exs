@@ -31,6 +31,14 @@ defmodule Plug.Adapters.Wait1.Handler.Test do
     assert length(invalidations) == 2
   end
 
+  test "should handle invalidation with redirect", context do
+    {resps, invalidations} = request(context, [
+      ["POST", ["invalidate-w-redirect"]]
+    ], 2)
+    assert length(resps) == 1
+    assert length(invalidations) == 2
+  end
+
   test "should handle errors", context do
     [[500, _, _],
      [500, _, _]] = request(context, [

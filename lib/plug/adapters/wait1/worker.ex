@@ -14,13 +14,13 @@ defmodule Plug.Adapters.Wait1.Worker do
         init = Conn.update_cookies(init, cookies)
         __MODULE__.loop(parent, plug, opts, init)
       {:handle_request, id, method, path, req_headers, qs, req_body} ->
-        send(parent, handle_request(id, method, path, req_headers, qs, req_body, plug, opts, init))
+        send(parent, handle_request(parent, id, method, path, req_headers, qs, req_body, plug, opts, init))
         __MODULE__.loop(parent, plug, opts, init)
     end
   end
 
-  defp handle_request(id, method, path, req_headers, qs, req_body, plug, opts, init) do
-    {resp_status, resp_headers, resp_body, resp_cookies} = request(method, path, req_headers, qs, req_body, plug, opts, init, nil)
+  defp handle_request(parent, id, method, path, req_headers, qs, req_body, plug, opts, init) do
+    {resp_status, resp_headers, resp_body, resp_cookies} = request(parent, method, path, req_headers, qs, req_body, plug, opts, init, nil)
     msg = encode(id, resp_status, resp_headers, resp_body)
     additional_reqs = invalidates(resp_headers, req_headers)
     {:wait1_resp, self(), id, msg, additional_reqs, resp_cookies}
@@ -65,18 +65,20 @@ defmodule Plug.Adapters.Wait1.Worker do
     {message, "", ""}
   end
 
-  defp request(method, path, req_headers, qs, body, plug, opts, init, redirect) do
+  defp request(parent, method, path, req_headers, qs, body, plug, opts, init, redirect) do
     init
     |> Conn.conn(method, path, req_headers, qs, body)
     |> plug.call(opts)
-    |> response(plug, opts, init, redirect)
+    |> response(parent, plug, opts, init, redirect)
   end
 
-  defp response(conn = %{adapter: {Conn, %{status: resp_status, headers: resp_headers, body: resp_body}}, resp_cookies: resp_cookies}, plug, opts, init, redirect) do
+  defp response(conn = %{adapter: {Conn, %{status: resp_status, headers: resp_headers, body: resp_body}}, resp_cookies: resp_cookies}, parent, plug, opts, init, redirect) do
     case Enum.reduce(resp_headers, %{}, &join_headers/2) do
-      %{"location" => location} when resp_status == 302 or resp_status == 303 ->
+      %{"location" => location} = resp_headers when resp_status == 302 or resp_status == 303 ->
+        req_headers = conn.req_headers
+        handle_redirect(parent, resp_headers, resp_cookies, req_headers)
         %{path: path, query: query} = URI.parse(location)
-        request("GET", path, conn.req_headers, query, nil, plug, opts, init, location)
+        request(parent, "GET", path, req_headers, query, nil, plug, opts, init, location)
       resp_headers when is_binary(redirect) ->
         resp_headers = Map.put(resp_headers, "content-location", redirect)
         {resp_status, resp_headers, resp_body, resp_cookies}
@@ -94,6 +96,11 @@ defmodule Plug.Adapters.Wait1.Worker do
       prev ->
         Map.put(acc, name, [value, prev])
     end
+  end
+
+  defp handle_redirect(parent, resp_headers, resp_cookies, req_headers) do
+    additional_reqs = invalidates(resp_headers, req_headers)
+    send(parent, {:wait1_redirect, self(), additional_reqs, resp_cookies})
   end
 
   defp encode(id, resp_status, resp_headers, resp_body) do

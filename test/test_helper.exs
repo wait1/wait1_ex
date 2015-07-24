@@ -17,9 +17,17 @@ defmodule Plug.Adapters.Wait1.TestFixture do
     |> put_resp_header("location", "/")
     |> send_resp(303, "")
   end
+  get "/foo" do
+    conn
+    |> send_resp(200, Poison.encode!(%{"foo" => "bar"}))
+  end
   post "/invalidate" do
     %{conn | resp_headers: [{"x-invalidates", "/"}, {"x-invalidates", "/redirect"}]}
     |> send_resp(200, "")
+  end
+  post "/invalidate-w-redirect" do
+    %{conn | resp_headers: [{"x-invalidates", "/"}, {"x-invalidates", "/redirect"}, {"location", "http://localhost:3000/foo"}]}
+    |> send_resp(303, "")
   end
   get "/raise" do
     put_resp_header(conn, "foo", "bar")

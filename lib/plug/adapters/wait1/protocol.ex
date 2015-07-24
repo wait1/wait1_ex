@@ -55,6 +55,11 @@ defmodule Plug.Adapters.Wait1.Protocol do
     update_cookies(resp_cookies, worker, state)
     {:reply, {:text, msg}, req, state}
   end
+  def websocket_info({:wait1_redirect, worker, additional_reqs, resp_cookies}, req, state = state(workers: workers)) do
+    handle_additional_requests(additional_reqs, workers)
+    update_cookies(resp_cookies, worker, state)
+    {:ok, req, state}
+  end
   def websocket_info({:plug_conn, :sent}, req, state) do
     {:ok, req, state}
   end
