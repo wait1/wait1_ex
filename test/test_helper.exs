@@ -37,6 +37,17 @@ defmodule Plug.Adapters.Wait1.TestFixture do
     put_resp_header(conn, "foo", "bar")
     throw :fake_error
   end
+  get "/cookie-set" do
+    conn
+    |> Plug.Conn.fetch_query_params
+    |> put_resp_cookie("foo", Dict.get(conn.query_params, "foo"))
+    |> send_resp(200, "")
+  end
+  get "/cookie-get" do
+    conn = Plug.Conn.fetch_cookies(conn)
+    conn
+    |> send_resp(200, Poison.encode!(%{"foo" => Dict.get(conn.cookies, "foo")}))
+  end
 
   match _ do
     send_resp(conn, 404, "")

@@ -13,9 +13,7 @@ defmodule Plug.Adapters.Wait1.Worker.Test do
       scheme: :ws,
       private: %{wait1_headers: []}
     }
-    {:ok, %{
-      worker: Worker.start_link(TestFixture, opts, init)
-    }}
+    {:ok, %{init: [TestFixture, opts, init]}}
   end
 
   test "should handle a request to the root", context do
@@ -62,10 +60,9 @@ defmodule Plug.Adapters.Wait1.Worker.Test do
     {_, [_], _, _} = request(context, "GET", ["redirect"])
   end
 
-  defp request(context, method \\ "GET", path \\ [], req_headers \\ %{}, qs \\ nil, body \\ nil) do
-    worker = context[:worker]
+  defp request(%{init: [plug, opts, init]}, method \\ "GET", path \\ [], req_headers \\ %{}, qs \\ nil, body \\ nil) do
     id = req_id
-    send(worker, {:handle_request, id, method, path, req_headers, qs, body})
+    worker = Worker.start_link(plug, opts, init, id, method, path, req_headers, qs, body)
     receive do
       {:wait1_resp, ^worker, ^id, msg, additional_reqs, cookies} ->
         {id, Poison.decode!(msg), additional_reqs, cookies}

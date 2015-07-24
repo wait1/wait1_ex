@@ -86,7 +86,7 @@ defmodule Plug.Adapters.Wait1.Conn do
     headers = Enum.map(resp_cookies, fn({key, %{value: value}}) ->
       {"cookie", "#{key}=#{value}"}
     end)
-    Plug.Conn.put_private(init, :wait1_headers, headers ++ init.private.wait1_headers)
+    Plug.Conn.put_private(init, :wait1_headers, init.private.wait1_headers ++ headers)
   end
 
   defp filter_slashes([], acc) do

@@ -46,6 +46,28 @@ defmodule Plug.Adapters.Wait1.Handler.Test do
       ["GET", ["throw"]]
     ])
   end
+
+  test "should persist cookies server-side", context do
+    resps = request(context, [
+      ["GET", ["cookie-set"], %{}, %{"foo" => "bar"}]
+    ])
+    [[200, _, _]] = resps
+
+    resps = request(context, [
+      ["GET", ["cookie-get"]]
+    ])
+    [[200, _, %{"foo" => "bar"}]] = resps
+
+    resps = request(context, [
+      ["GET", ["cookie-set"], %{}, %{"foo" => "baz"}]
+    ])
+    [[200, _, _]] = resps
+
+    resps = request(context, [
+      ["GET", ["cookie-get"]]
+    ])
+    [[200, _, %{"foo" => "baz"}]] = resps
+  end
   
   defp request(context, reqs, invalidations \\ 0) when is_list(reqs) do
     reqs = Enum.map(reqs, fn(req) ->

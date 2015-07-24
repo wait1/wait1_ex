@@ -8,7 +8,7 @@ defmodule Plug.Adapters.Wait1.Protocol do
   require Logger
 
   require Record
-  Record.defrecordp :state, [plug: nil, opts: nil, conn: nil, workers: nil, size: 3]
+  Record.defrecordp :state, [plug: nil, opts: nil, conn: nil]
 
   def upgrade(req, env, _, transport) do
     Handler.upgrade(req, env, Handler, transport)
@@ -17,18 +17,15 @@ defmodule Plug.Adapters.Wait1.Protocol do
   def websocket_init(transport, req, {plug, opts}) do
     :erlang.process_flag(:trap_exit, true)
     {:ok, conn, req} = Conn.init(req, transport)
-    ## TODO make worker count configurable
-    size = 3
-    workers = start_workers(plug, opts, conn, size)
-    {:ok, req, state(plug: plug, opts: opts, conn: conn, workers: workers, size: size)}
+    {:ok, req, state(plug: plug, opts: opts, conn: conn)}
   end
 
-  def websocket_handle({:text, content}, req, state(workers: workers) = state) do
+  def websocket_handle({:text, content}, req, state) do
     case parse(content) do
       {:error, _} ->
         {:reply, {:text, "[[-1,\"invalid request\"]]"}, req, state}
       {:ok, requests} ->
-        case Enum.filter(requests, &(handle(&1, workers))) do
+        case Enum.filter(requests, &(handle(&1, state))) do
           [] ->
             {:ok, req, state}
           errors ->
@@ -50,20 +47,20 @@ defmodule Plug.Adapters.Wait1.Protocol do
     {:ok, req, state}
   end
 
-  def websocket_info({:wait1_resp, worker, _id, msg, additional_reqs, resp_cookies}, req, state = state(workers: workers)) do
-    handle_additional_requests(additional_reqs, workers)
-    update_cookies(resp_cookies, worker, state)
+  def websocket_info({:wait1_resp, _worker, _id, msg, additional_reqs, resp_cookies}, req, state) do
+    handle_additional_requests(additional_reqs, state)
+    state = update_cookies(resp_cookies, state)
     {:reply, {:text, msg}, req, state}
   end
-  def websocket_info({:wait1_redirect, worker, additional_reqs, resp_cookies}, req, state = state(workers: workers)) do
-    handle_additional_requests(additional_reqs, workers)
-    update_cookies(resp_cookies, worker, state)
+  def websocket_info({:wait1_redirect, _worker, additional_reqs, resp_cookies}, req, state) do
+    handle_additional_requests(additional_reqs, state)
+    update_cookies(resp_cookies, state)
     {:ok, req, state}
   end
   def websocket_info({:plug_conn, :sent}, req, state) do
     {:ok, req, state}
   end
-  def websocket_info({:DOWN, _ref, :process, _pid, :normal}, req, state) do
+  def websocket_info({:EXIT, _pid, :normal}, req, state) do
     {:ok, req, state}
   end
   def websocket_info({:EXIT, _pid, error}, req, state) do
@@ -79,14 +76,6 @@ defmodule Plug.Adapters.Wait1.Protocol do
     :ok
   end
 
-  defp start_workers(plug, opts, init, count) do
-    :lists.seq(1, count)
-    |> Enum.map(fn(_) ->
-      Worker.start_link(plug, opts, init)
-    end)
-    |> Stream.cycle()
-  end
-
   defp parse(content) do
     case Poison.decode(content) do
       {:ok, reqs} when is_list(reqs) ->
@@ -96,49 +85,42 @@ defmodule Plug.Adapters.Wait1.Protocol do
     end
   end
 
-  defp handle([id, method, path], workers) do
-    [worker] = Enum.take(workers, 1)
-    send(worker, {:handle_request, id, method, path, %{}, nil, nil})
+  defp handle([id, method, path], state(plug: plug, opts: opts, conn: conn)) do
+    Worker.start_link(plug, opts, conn, id, method, path, %{}, nil, nil)
     nil
   end
-  defp handle([id, method, path, headers], workers) do
-    [worker] = Enum.take(workers, 1)
-    send(worker, {:handle_request, id, method, path, headers, nil, nil})
+  defp handle([id, method, path, req_headers], state(plug: plug, opts: opts, conn: conn)) do
+    Worker.start_link(plug, opts, conn, id, method, path, req_headers, nil, nil)
     nil
   end
-  defp handle([id, method, path, headers, qs], workers) do
-    [worker] = Enum.take(workers, 1)
-    send(worker, {:handle_request, id, method, path, headers, qs, nil})
+  defp handle([id, method, path, req_headers, qs], state(plug: plug, opts: opts, conn: conn)) do
+    Worker.start_link(plug, opts, conn, id, method, path, req_headers, qs, nil)
     nil
   end
-  defp handle([id, method, path, headers, qs, body], workers) do
-    [worker] = Enum.take(workers, 1)
-    send(worker, {:handle_request, id, method, path, headers, qs, body})
+  defp handle([id, method, path, req_headers, qs, req_body], state(plug: plug, opts: opts, conn: conn)) do
+    Worker.start_link(plug, opts, conn, id, method, path, req_headers, qs, req_body)
     nil
   end
-  defp handle(req, _workers) do
+  defp handle(req, _state) do
     {:error, req}
   end
 
-  defp handle_additional_requests([additional_req | additional_reqs], workers) do
-    handle(additional_req, workers)
-    handle_additional_requests(additional_reqs, workers)
+  defp handle_additional_requests([additional_req | additional_reqs], state) do
+    handle(additional_req, state)
+    handle_additional_requests(additional_reqs, state)
   end
   defp handle_additional_requests(_, _) do
     :ok
   end
 
-  defp update_cookies(resp_cookies, worker, state(workers: workers, size: size)) when is_map(resp_cookies) do
+  defp update_cookies(resp_cookies, state = state(conn: conn)) when is_map(resp_cookies) do
     if Map.size(resp_cookies) > 0 do
-      workers
-      |> Enum.take(size)
-      |> Enum.each(fn
-        (pid) when pid == worker -> nil
-        (pid) -> send(pid, {:update_cookies, resp_cookies})
-      end)
+      state(state, conn: Conn.update_cookies(conn, resp_cookies))
+    else
+      state
     end
   end
-  defp update_cookies(_, _, _) do
-    :ok
+  defp update_cookies(_, state) do
+    state
   end
 end

@@ -4,32 +4,22 @@ defmodule Plug.Adapters.Wait1.Worker do
   @moduledoc false
   alias Plug.Adapters.Wait1.Conn
 
-  def start_link(plug, opts, init) do
-    spawn_link(__MODULE__, :loop, [self(), plug, opts, init])
+  def start_link(plug, opts, init, id, method, path, req_headers, qs, req_body) do
+    spawn_link(__MODULE__, :handle_request, [self(), plug, opts, init, id, method, path, req_headers, qs, req_body])
   end
 
-  def loop(parent, plug, opts, init) do
-    receive do
-      {:update_cookies, cookies} ->
-        init = Conn.update_cookies(init, cookies)
-        __MODULE__.loop(parent, plug, opts, init)
-      {:handle_request, id, method, path, req_headers, qs, req_body} ->
-        send(parent, handle_request(parent, id, method, path, req_headers, qs, req_body, plug, opts, init))
-        __MODULE__.loop(parent, plug, opts, init)
-    end
-  end
-
-  defp handle_request(parent, id, method, path, req_headers, qs, req_body, plug, opts, init) do
+  def handle_request(parent, plug, opts, init, id, method, path, req_headers, qs, req_body) do
     {resp_status, resp_headers, resp_body, resp_cookies} = request(parent, method, path, req_headers, qs, req_body, plug, opts, init, nil)
     msg = encode(id, resp_status, resp_headers, resp_body)
     additional_reqs = invalidates(resp_headers, req_headers)
-    {:wait1_resp, self(), id, msg, additional_reqs, resp_cookies}
+    send(parent, {:wait1_resp, self(), id, msg, additional_reqs, resp_cookies})
+  # Usually we wouldn't catch errors but we want to be able to set the status code and response body to something meaningful
   rescue
     err ->
-      format_error(err, :error, id)
+      send(parent, format_error(err, :error, id))
   catch
     err ->
-      format_error(err, :throw, id)
+      send(parent, format_error(err, :throw, id))
   end
 
   defp format_error(err, type, id) do
