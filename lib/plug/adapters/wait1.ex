@@ -90,6 +90,8 @@ defmodule Plug.Adapters.Wait1 do
   end
 
   defp dispatch_for(plug, opts, options) do
+    URI.default_port("ws", 80)
+    URI.default_port("wss", 443)
     opts = plug.init(opts)
     onconnection = Keyword.get(options, :onconnection, &onconnection/1)
     [{:_, [ {:_, Plug.Adapters.Wait1.Handler, {plug, opts, onconnection}} ]}]
