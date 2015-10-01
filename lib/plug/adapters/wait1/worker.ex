@@ -41,7 +41,7 @@ defmodule Plug.Adapters.Wait1.Worker do
       }
     }
 
-    msg = Poison.encode!([[id, 500, %{}, body]])
+    msg = Poison.encode!([id, 500, %{}, body])
     {:wait1_resp, self(), id, msg, [], []}
   end
 
@@ -95,7 +95,7 @@ defmodule Plug.Adapters.Wait1.Worker do
 
   defp encode(id, resp_status, resp_headers, resp_body) do
     resp_body = %Plug.Adapters.Wait1.Conn.Body{body: resp_body}
-    Poison.encode!([[id, resp_status, resp_headers, resp_body]])
+    Poison.encode!([id, resp_status, resp_headers, resp_body])
   end
 
   defp invalidates(%{"x-invalidates" => link}, req_headers) when is_list(link) do

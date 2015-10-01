@@ -48,13 +48,12 @@ defmodule Plug.Adapters.Wait1.Protocol do
   end
 
   def websocket_info({:wait1_resp, _worker, _id, msg, additional_reqs, resp_cookies}, req, state) do
-    handle_additional_requests(additional_reqs, state)
-    state = update_cookies(resp_cookies, state)
-    {:reply, {:text, msg}, req, state}
+    {resp, state} = merge_response(msg, additional_reqs, resp_cookies, [], state)
+    {:reply, {:text, resp}, req, state}
   end
   def websocket_info({:wait1_redirect, _worker, additional_reqs, resp_cookies}, req, state) do
     handle_additional_requests(additional_reqs, state)
-    update_cookies(resp_cookies, state)
+    state = update_cookies(resp_cookies, state)
     {:ok, req, state}
   end
   def websocket_info({:plug_conn, :sent}, req, state) do
@@ -103,6 +102,25 @@ defmodule Plug.Adapters.Wait1.Protocol do
   end
   defp handle(req, _state) do
     {:error, req}
+  end
+
+  defp buffer(buffer, state) when length(buffer) < 10 do
+    receive do
+      {:wait1_resp, _worker, _id, msg, additional_reqs, resp_cookies} ->
+        merge_response(msg, additional_reqs, resp_cookies, buffer, state)
+    after
+      5 ->
+        {Poison.encode!(buffer), state}
+    end
+  end
+  defp buffer(buffer, state) do
+    {Poison.encode!(buffer), state}
+  end
+
+  defp merge_response(msg, additional_reqs, resp_cookies, buffer, state) do
+    state = update_cookies(resp_cookies, state)
+    handle_additional_requests(additional_reqs, state)
+    buffer([%Plug.Adapters.Wait1.Conn.Body{body: msg} | buffer], state)
   end
 
   defp handle_additional_requests([additional_req | additional_reqs], state) do

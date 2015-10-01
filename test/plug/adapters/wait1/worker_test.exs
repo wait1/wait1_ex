@@ -18,46 +18,46 @@ defmodule Plug.Adapters.Wait1.Worker.Test do
 
   test "should handle a request to the root", context do
     {id, msg, _, _} = request(context)
-    [[^id, 200, _, %{"hello" => "world"}]] = msg
+    [^id, 200, _, %{"hello" => "world"}] = msg
   end
 
   test "should handle string paths", context do
     {id, msg, _, _} = request(context, "GET", "/")
-    [[^id, 200, _, %{"hello" => "world"}]] = msg
+    [^id, 200, _, %{"hello" => "world"}] = msg
   end
 
   test "should handle excessive slashes", context do
     {id, msg, _, _} = request(context, "GET", "////redirect////////")
-    [[^id, 200, %{"content-location" => _}, %{"hello" => "world"}]] = msg
+    [^id, 200, %{"content-location" => _}, %{"hello" => "world"}] = msg
   end
 
   test "should handle a redirect", context do
     {id, msg, _, _} = request(context, "GET", ["redirect"])
-    [[^id, 200, %{"content-location" => _}, _]] = msg
+    [^id, 200, %{"content-location" => _}, _] = msg
   end
 
   test "should handle invalidation", context do
     {id, msg, additional_reqs, _} = request(context, "POST", ["invalidate"])
-    [[^id, 200, _, _]] = msg
+    [^id, 200, _, _] = msg
     assert length(additional_reqs) > 1
   end
 
   test "should handle a raised error", context do
     {id, msg, _, _} = request(context, "GET", ["raise"])
-    [[^id, 500, _, %{"error" => %{"message" => _}}]] = msg
+    [^id, 500, _, %{"error" => %{"message" => _}}] = msg
   end
 
   test "should handle a thrown error", context do
     {id, msg, _, _} = request(context, "GET", ["throw"])
-    [[^id, 500, _, %{"error" => %{"message" => _}}]] = msg
+    [^id, 500, _, %{"error" => %{"message" => _}}] = msg
   end
 
   test "should handle several requests", context do
-    {_, [_], _, _} = request(context)
-    {_, [_], _, _} = request(context, "GET", ["raise"])
-    {_, [_], _, _} = request(context, "GET", ["not-found"])
-    {_, [_], _, _} = request(context, "GET", ["throw"])
-    {_, [_], _, _} = request(context, "GET", ["redirect"])
+    {_, [_, _, _, _], _, _} = request(context)
+    {_, [_, _, _, _], _, _} = request(context, "GET", ["raise"])
+    {_, [_, _, _, _], _, _} = request(context, "GET", ["not-found"])
+    {_, [_, _, _, _], _, _} = request(context, "GET", ["throw"])
+    {_, [_, _, _, _], _, _} = request(context, "GET", ["redirect"])
   end
 
   defp request(%{init: [plug, opts, init]}, method \\ "GET", path \\ [], req_headers \\ %{}, qs \\ nil, body \\ nil) do
