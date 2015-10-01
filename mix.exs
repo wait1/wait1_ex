@@ -23,7 +23,7 @@ defmodule PlugWait1.Mixfile do
 
   defp package do
     [files: ["lib", "mix.exs", "README*"],
-     contributors: ["Cameron Bytheway"],
+     maintainers: ["Cameron Bytheway"],
      licenses: ["MIT"],
      links: %{"GitHub" => "https://github.com/wait1/plug_wait1"}]
   end
