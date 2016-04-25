@@ -25,10 +25,10 @@ defmodule Plug.Adapters.Wait1.Protocol do
       {:error, _} ->
         {:reply, {:text, "[[-1,\"invalid request\"]]"}, req, state}
       {:ok, requests} ->
-        case Enum.filter(requests, &(handle(&1, state))) do
-          [] ->
+        case handle_requests(requests, state) do
+          {[], state} ->
             {:ok, req, state}
-          errors ->
+          {errors, state} ->
             body = for {:error, invalid} <- errors do
               [-1, "invalid request #{inspect(invalid)}"]
             end |> Poison.encode!()
@@ -84,24 +84,41 @@ defmodule Plug.Adapters.Wait1.Protocol do
     end
   end
 
-  defp handle([id, method, path], state(plug: plug, opts: opts, conn: conn)) do
+  defp handle_requests(requests, state) do
+    Enum.reduce(requests, {[], state}, fn(req, {errors, state}) ->
+      case handle(req, state) do
+        :error ->
+          {[req | errors], state}
+        state ->
+          {errors, state}
+      end
+    end)
+  end
+
+  defp handle([_id, "SET", headers], state(conn: conn = %{private: %{wait1_headers: prev}}) = state) when is_map(headers) do
+    headers = Enum.reduce(headers, prev, fn({key, value}, acc) ->
+      :lists.keystore(key, 1, acc, {key, value})
+    end)
+    state(state, conn: Plug.Conn.put_private(conn, :wait1_headers, headers))
+  end
+  defp handle([id, method, path], state(plug: plug, opts: opts, conn: conn) = state) do
     Worker.start_link(plug, opts, conn, id, method, path, %{}, nil, nil)
-    nil
+    state
   end
-  defp handle([id, method, path, req_headers], state(plug: plug, opts: opts, conn: conn)) do
+  defp handle([id, method, path, req_headers], state(plug: plug, opts: opts, conn: conn) = state) do
     Worker.start_link(plug, opts, conn, id, method, path, req_headers, nil, nil)
-    nil
+    state
   end
-  defp handle([id, method, path, req_headers, qs], state(plug: plug, opts: opts, conn: conn)) do
+  defp handle([id, method, path, req_headers, qs], state(plug: plug, opts: opts, conn: conn) = state) do
     Worker.start_link(plug, opts, conn, id, method, path, req_headers, qs, nil)
-    nil
+    state
   end
-  defp handle([id, method, path, req_headers, qs, req_body], state(plug: plug, opts: opts, conn: conn)) do
+  defp handle([id, method, path, req_headers, qs, req_body], state(plug: plug, opts: opts, conn: conn) = state) do
     Worker.start_link(plug, opts, conn, id, method, path, req_headers, qs, req_body)
-    nil
+    state
   end
-  defp handle(req, _state) do
-    {:error, req}
+  defp handle(_req, _state) do
+    :error
   end
 
   defp buffer(buffer, state) when length(buffer) < 10 do

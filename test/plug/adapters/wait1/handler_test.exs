@@ -68,10 +68,33 @@ defmodule Plug.Adapters.Wait1.Handler.Test do
     ])
     [[200, _, %{"foo" => "baz"}]] = resps
   end
-  
+
+  test "should persist headers server-side", context do
+    request(context, [
+      ["SET", %{"x-foo" => "bar"}]
+    ])
+
+    resps = request(context, [
+      ["GET", ["headers"]]
+    ])
+    [[200, _, %{"x-foo" => "bar"}]] = resps
+
+    request(context, [
+      ["SET", %{"x-foo" => "baz", "testing" => "123"}]
+    ])
+
+    resps = request(context, [
+      ["GET", ["headers"]]
+    ])
+    [[200, _, %{"x-foo" => "baz", "testing" => "123"}]] = resps
+  end
+
   defp request(context, reqs, invalidations \\ 0) when is_list(reqs) do
-    reqs = Enum.map(reqs, fn(req) ->
-      [req_id | req]
+    reqs = Enum.map(reqs, fn
+      (["SET" | _] = req) ->
+        [-2 | req]
+      (req) ->
+        [req_id | req]
     end)
 
     client = context[:client]
@@ -98,6 +121,9 @@ defmodule Plug.Adapters.Wait1.Handler.Test do
 
   defp await([], acc) do
     :lists.reverse(acc)
+  end
+  defp await([[-2 | _] | reqs], acc) do
+    await(reqs, acc)
   end
   defp await([[id | _] | reqs], acc) do
     receive do

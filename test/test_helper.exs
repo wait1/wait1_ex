@@ -48,6 +48,10 @@ defmodule Plug.Adapters.Wait1.TestFixture do
     conn
     |> send_resp(200, Poison.encode!(%{"foo" => Dict.get(conn.cookies, "foo")}))
   end
+  get "/headers" do
+    conn
+    |> send_resp(200, Poison.encode!(:maps.from_list(conn.req_headers)))
+  end
 
   match _ do
     send_resp(conn, 404, "")
