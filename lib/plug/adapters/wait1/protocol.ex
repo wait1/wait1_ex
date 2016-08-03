@@ -17,7 +17,7 @@ defmodule Plug.Adapters.Wait1.Protocol do
   def websocket_init(transport, req, {plug, opts}) do
     :erlang.process_flag(:trap_exit, true)
     {:ok, conn, req} = Conn.init(req, transport)
-    {:ok, req, state(plug: plug, opts: opts, conn: conn)}
+    {:ok, req, state(plug: plug, opts: opts, conn: conn), Application.get_env(:plug_wait1, :websocket_timeout, :infinity)}
   end
 
   def websocket_handle({:text, content}, req, state) do
