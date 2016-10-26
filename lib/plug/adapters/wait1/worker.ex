@@ -46,10 +46,10 @@ defmodule Plug.Adapters.Wait1.Worker do
   end
 
   defp extract_connection_error({message, %Plug.Conn{method: method} = conn}) when is_binary(message) do
-    {message, method, Plug.Conn.full_path(conn)}
+    {message, method, conn.request_path}
   end
   defp extract_connection_error({message, %Plug.Conn{method: method} = conn}) do
-    {inspect(message), method, Plug.Conn.full_path(conn)}
+    {inspect(message), method, conn.request_path}
   end
   defp extract_connection_error(message) do
     {message, "", ""}

@@ -126,11 +126,11 @@ defmodule Plug.Adapters.Wait1.Conn do
   end
 
   def send_chunked(_req, _, _) do
-    raise :not_implemented
+    throw :not_implemented
   end
 
   def send_file(_req, _, _, _, _, _) do
-    raise :not_implemented
+    throw :not_implemented
   end
 
   def chunk(req, _body) do
