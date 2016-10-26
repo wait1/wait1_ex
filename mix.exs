@@ -3,7 +3,7 @@ defmodule PlugWait1.Mixfile do
 
   def project do
     [app: :plug_wait1,
-     version: "0.2.0",
+     version: "0.2.1",
      elixir: "~> 1.0",
      description: "Plug adapter for the wait1 protocol",
      package: package,
@@ -15,10 +15,11 @@ defmodule PlugWait1.Mixfile do
   end
 
   defp deps do
-    [{ :cowboy, ">= 1.0.0" },
-     { :plug, "~> 1.2.0" },
-     { :poison, "~> 1.3.1" },
-     { :websocket_client, github: "jeremyong/websocket_client", only: [:test]}]
+    [{:cowboy, ">= 1.0.0"},
+     {:plug, "~> 1.2.0"},
+     {:poison, "~> 2.2.0"},
+     {:websocket_client, github: "jeremyong/websocket_client", only: [:test]},
+     {:ex_doc, ">= 0.0.0", only: :dev}]
   end
 
   defp package do
