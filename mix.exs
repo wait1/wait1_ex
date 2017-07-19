@@ -6,8 +6,8 @@ defmodule PlugWait1.Mixfile do
      version: "0.2.2",
      elixir: "~> 1.0",
      description: "Plug adapter for the wait1 protocol",
-     package: package,
-     deps: deps]
+     package: package(),
+     deps: deps()]
   end
 
   def application do

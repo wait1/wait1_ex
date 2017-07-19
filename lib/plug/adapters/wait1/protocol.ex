@@ -3,7 +3,6 @@ defmodule Plug.Adapters.Wait1.Protocol do
   alias Plug.Adapters.Wait1.Conn
   alias Plug.Adapters.Cowboy.Handler
   alias Plug.Adapters.Wait1.Worker
-  @already_sent {:plug_conn, :sent}
 
   require Logger
 
