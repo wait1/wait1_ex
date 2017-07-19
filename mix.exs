@@ -16,8 +16,8 @@ defmodule PlugWait1.Mixfile do
 
   defp deps do
     [{:cowboy, ">= 1.0.0"},
-     {:plug, "~> 1.2.0"},
-     {:poison, "~> 2.2.0"},
+     {:plug, "~> 1.3.0"},
+     {:poison, "~> 3.1.0"},
      {:websocket_client, github: "jeremyong/websocket_client", only: [:test]},
      {:ex_doc, ">= 0.0.0", only: :dev}]
   end
